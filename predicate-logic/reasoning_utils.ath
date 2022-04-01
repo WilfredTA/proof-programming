@@ -1,0 +1,355 @@
+
+# Exercises in First Order Logic
+# Adapted from FPMICS 5
+
+module FOL {
+    domains Object, Element, Set
+
+    declare even, odd, prime: [Int] -> Boolean
+    declare in: [Element Set] -> Boolean
+    declare subset: [Set Set] -> Boolean
+
+    declare P, Q, S: [Object] -> Boolean
+    declare R, T: [Object Object] -> Boolean
+    declare a, b, c, d: Object
+
+    define [x y z w] := [?x ?y ?z ?w]
+
+
+# ------------------------------------- Basic Examples -------------------------------------   
+    # Goal: Forall(x) (P(x) /\ Q(x)) ==> (Forall(x) P(x) /\ Forall(x) Q(x))
+    assume hyp := (forall x . (P x) & (Q x))
+        let { all-P := pick-any y:Object
+	              conclude (P y)
+		              (!left-and (!uspec hyp y));
+	         all-Q := pick-any y:Object
+	             conclude (Q y)
+		             (!right-and (!uspec hyp y)) }
+
+    (!both all-P all-Q)
+
+
+
+    # Goal: Some(x) (P(x) /\ Q(x)) ==> (Some(x) P(x) /\ Some(x) Q(x))
+
+    assume hyp := (exists x . (P x) & (Q x))
+        pick-witness w for hyp
+            let { Pw := (!left-and ((P w) & (Q w)));    
+		          Qw := (!right-and ((P w) & (Q w)));
+		          Some-P := (!egen (exists y . P y) w);
+		          Some-Q := (!egen (exists y . Q y) w) }
+	    (!both Some-P Some-Q)
+
+    # Goal: Forall(x) P(x) OR Forall(x) Q(x) ==> Forall(x) (P(x) OR Q(x))
+      assume hyp := ((forall x . (P x)) | (forall x . (Q x)))
+        pick-any y
+            (!cases hyp
+                assume case-1 := (forall x . P x)
+                    conclude (P y | Q y)
+                        (!either (!uspec case-1 y) (Q y))
+                assume case-2 := (forall x . Q x)
+                    conclude (P y | Q y)
+                        (!either (P y) (!uspec case-2 y))
+                )
+
+	# Goal: Some(x) P(x) OR Q(x) ==> Some(x) P(x) OR Some(x) Q(x)
+        assume hyp := (exists x . (P x | Q x))
+	        pick-witness w for hyp wp
+                (!cases wp
+                        assume (P w)
+                        (!either (!egen (exists x . P x) w) (exists x . Q x))
+                        assume (Q w)
+                        (!either (exists x . P x) (!egen (exists x . Q x) w))
+                )
+
+
+
+
+
+
+	    # Goal: (forall(x) P(x) ==> Q(x)) ==> (forall(x) P(x) ==> forall(x) Q(x))
+            assume hyp-1 := (forall x . (P x) ==> (Q x))
+	        assume hyp-2 := (forall x . (P x))
+            conclude (forall x . (Q x))
+                pick-any y
+                    conclude (Q y)
+                        let { P-y := (!uspec hyp-2 y);
+                              Py=>Qy := (!uspec hyp-1 y) }
+
+                    (!mp Py=>Qy P-y)
+
+	    # Goal: Some(x) P(x) \/ Some(x) Q(x) ==> Some(x) (P(x) \/ Q(x))
+	    assume hyp := ((exists x . (P x)) | (exists x . (Q x)))
+            (!cases hyp
+                assume case-1 := (exists x . (P x))
+                    pick-witness w for case-1
+                        let {Pw|Qw := (!either (P w) (Q w))}
+                            (!egen (exists x . ((P x) | (Q x))) w)	
+
+                assume case-2 := (exists x . (Q x))
+                    pick-witness w for case-2
+                        let {Pw|Qw := (!either (P w) (Q w))}
+                        (!egen (exists x . ((P x) | (Q x))) w)
+            )
+
+
+
+            # Goal: Given Forall(x, y) x R y, prove Forall(x) x R x
+	    assert xry := (forall x y . x R y)
+	    conclude goal := (forall x . x R x)
+	        pick-any a
+		        conclude (a R a)
+		            (!instance xry [a a])
+
+
+	   clear-assumption-base
+
+	   # Goal: Forall(x) (Exists(y) x = y))
+	   define goal-x-y-eq := (forall x . exists y . x = y)
+	        conclude goal-x-y-eq
+                pick-any x
+	                let { _ := (!reflex x)}
+	                (!egen (exists y . x = y) x)
+
+	    clear-assumption-base
+
+	    # Goal: Given premises, prove Exists(y) S(y)
+	    assert premise-1 := (forall x . P x | Q x ==> S x)
+	    assert premise-2 := (exists y . Q y)
+
+	    conclude goal := (exists y . S y)
+	        pick-witness w for premise-2 wp
+	            let { p|q=>s := conclude (P w | Q w ==> S w)
+		                           (!uspec premise-1 w);
+		              p|q := (!either (P w) (Q w));
+
+                      _ := conclude (S w)
+                            (!mp (!uspec premise-1 w) p|q) }
+		        (!egen goal w)
+
+
+	    clear-assumption-base
+
+	    # Goal: Given premises, prove Exists(x) (S(x) /\ Q(x))
+	    assert premise-1 := (exists x . P x & Q x)
+	    assert premise-2 := (forall y . P y ==> S y)
+	    define goal := (exists x . S x & Q x)
+	        conclude goal
+	        pick-witness w for premise-1 wp
+                let { P-w := (!left-and wp);
+                      S-w := (!mp (!uspec premise-2 w) P-w);
+                      Q-w := (!right-and wp);
+                _ := (!both  S-w (!right-and wp))}
+	        (!egen goal w)
+
+	    clear-assumption-base
+
+
+	    # Goal: Given premises, prove (~ Exists(x) P(x))
+	    assert premise-1 := (~ exists x . Q x)
+	    assert premise-2 := (forall x . P x ==> Q x)
+	    define goal := (~ exists x . P x)
+	    (!by-contradiction goal
+			       assume P-x := (exists x . P x)
+			           pick-witness w for P-x wp
+			           let {Q-w := (!mp (!uspec premise-2 w) wp)}
+			           (!absurd (!egen (exists x . Q x) w) premise-1)
+	     )
+
+
+	    clear-assumption-base
+
+	    # Goal: Given premises, prove (Forall(x) Q(x)) ==> ~ Exists(z) z R z)
+	    assert premise-1 := (forall x . x R x ==> P x)
+	    assert premise-2 := ((exists x . P x) ==> ~ exists y . Q y)
+	    define goal := ((forall x . Q x) ==> ~ exists z . z R z)
+	    conclude goal
+	        assume Q-x := (forall x . Q x)
+                (!by-contradiction (~ exists z . z R z)
+                        assume hyp := (exists z . z R z)
+                            pick-witness w for hyp wp # (w R w)
+                            let { P-w := (!mp (!uspec premise-1 w) wp);
+                                  Q-w := (!uspec Q-x w);    
+                                  exists-p := (!egen (exists x . P x) w);
+                                  no-q := (!mp premise-2 exists-p);
+                                  exists-q := (!egen (exists x . Q x) w) }
+                            (!absurd no-q exists-q)
+                                    
+                            
+                )
+
+		clear-assumption-base
+
+
+
+# ------------------------------------- Generic Universal Specialization & Existential Generalization -------------------------------------   
+
+
+		# Performs universal specialization for multiple quantified variables
+		# in one method call.
+		# If a sentence has multiple quantified variables,
+		# (!uspec sentence var) will only instantiate one of them; the result
+		# is still universally quantified
+
+	       
+		define uspec* := method (premise terms)
+		match terms {
+			     [] => (!claim premise)
+			     | (list-of t rest) => (!uspec* (!uspec premise t) rest)
+	        }
+
+
+
+		# Question: Why is replace-var needed here?
+		define egen* := method (goal witnesses)
+		match [goal witnesses] {
+            [_ [t]] => (!egen goal t)					
+		|   [(exists x body) (list-of t more)] =>
+                    let { _ := (print body);
+                          _ := (print goal);
+                          new_body := (replace-var x t body);
+                          _ := (print new_body);
+                          _ := (!egen* new_body more) }
+                    (!egen goal t)
+		}
+
+        # Example using egen*
+		assert  ((even 2) & (even 4) & (odd 3))
+		conclude (exists x y z . ((even x) & (even y) & (odd z)))
+  		    (!egen* (exists x y z . ((even x) & (even y) & (odd z))) [2 4 3])
+
+# ------------------------------------- Work with Horn Clauses -------------------------------------   
+
+
+		define prove-components := method (p)
+		check {
+		       (holds? p) => (!claim p)
+		       | else => match p {
+					  (p1 & p2) =>
+					          (!both (!prove-components p1)
+						             (!prove-components p2))
+					  | (p1 | p2) =>
+					    try {
+						   (!either (!prove-components p1) p2)
+						 | (!either p1 (!prove-components p2))					     }
+			 }
+	       }
+
+
+
+	    define antecedent := method (rule)
+	        match rule {(p ==> _) => (!prove-components p)}
+		
+		define fire := method (rule terms)
+		match rule {
+			    (forall (some-list _) (_ ==> _)) =>
+			        let {rule-instance := (!uspec* rule terms)}
+		                (!mp rule-instance (!antecedent rule-instance))
+
+			    | (forall (some-list _) (_ <==> _)) =>
+			        let {rule-instance := (!uspec* rule terms)}
+				try {
+				     let {cond-1 := (!left-iff rule-instance)}
+				        (!mp cond-1 (!antecedent cond-1))
+				    | let {cond-2 := (!right-iff rule-instance)}
+				        (!mp cond-2 (!antecedent cond-2))
+				}
+			    | (forall _ _ ) => (!uspec* rule terms)
+	       }	        
+
+
+	      
+
+
+# Simple Example
+        domain Person
+		declare parent, ancestor: [Person Person] -> Boolean
+		declare peter, mary: Person
+		assert ancestor-rule := (forall x y . x parent y ==> x ancestor y)
+
+		assert fact := (peter parent mary)
+		(!fire ancestor-rule [peter mary])
+
+
+	       
+
+
+# ------------------------------------- Quantified De Morgan's -------------------------------------   
+
+		# ~ forall x P(x) == Some x ~ P(x)
+		# ~ Some x P(x) == forall x ~ P(x)
+
+		# ~ forall x P(x) -> Some x ~ P(x)
+		define (qn-not-all-to-some-not premise) :=
+		match premise {
+			       (~ (forall x p)) =>
+			       (!by-contradiction (exists x . complement p)
+						  assume hyp :=  (~ (exists x . complement p))
+						  let {
+						        all-p := pick-any y
+							                let {p-y := (replace-var x y p)}
+                                                (!by-contradiction  p-y
+                                                    assume not-p-y := (complement p-y) 
+                                                        (!absurd hyp (!egen (exists y . not-p-y) y))
+                                                )
+						       }
+						   (!absurd premise all-p)
+			     )
+		}	       
+
+# Example 
+		assert not-all-even := (~ (forall x . even x))
+		conclude (exists x . (complement (even x)))
+		    (!qn-not-all-to-some-not not-all-even)
+
+
+		
+		# Some x ~ P(x) -> ~ forall x P(x)
+		define (qn-some-not-to-not-all premise) :=
+		match premise {
+			       (exists x p) =>
+			       (!by-contradiction (~ forall x . complement p)
+                        assume hyp := (forall x . complement p)
+                        pick-witness w for premise wp # P(w)
+                            let {P'w := (!uspec hyp w)} # ~ P(w)
+                            (!absurd P'w wp) 
+				)
+		}	       
+
+
+
+	
+		define (qn-not-some-to-all-not premise) :=
+		match premise {
+			       (~ (exists x p)) =>
+			            conclude (forall x complement p)
+                            pick-any y
+                                let {p-y := (replace-var x y p)}
+                                (!by-contradiction (complement p-y)
+                                    assume p-y
+                                        (!absurd (!egen (exists y p-y)) premise)
+                                )
+		}
+
+
+		# forall x ~ P(x) -> ~ Some x P(x)
+		# ie. forall x P(x) -> ~ Some x P'(x)
+		define (qn-all-not-to-not-some premise) :=
+		match premise {
+			       (forall x p) =>
+			       (!by-contradiction (~ (exists x . complement p))
+						  assume hyp := (exists x . complement p)
+                            pick-witness w for hyp wp
+                            (!absurd (!uspec premise w) wp)
+				    )		  
+						  
+		      
+		}	       
+
+
+# Example
+		assert even-or-odd := (forall x . even x | odd x)
+		define not-some-non-even-or-odd :=
+		    conclude (~ (exists x . (~ (even x | odd x))))
+		    (!qn-all-not-to-not-some even-or-odd)
+}
