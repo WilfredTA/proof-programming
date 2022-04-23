@@ -1,0 +1,7 @@
+load "calc_lang"
+module CompilerCorrectness {
+    open CalculatorLanguage
+    extend-module Compiler {
+	       define compiler-spec := (forall e . run-vm compile e = Interpreter.I e)
+     }
+}

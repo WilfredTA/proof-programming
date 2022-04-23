@@ -1,0 +1,137 @@
+load "nat-div"
+load "lib/main/list-of"
+module CalculatorLanguage {
+
+	   
+	   datatype Exp := (const N)
+		    | (sum Exp Exp)
+		    | (diff Exp Exp)
+		    | (prod Exp Exp)
+		    | (quot Exp Exp)
+
+	  set-precedence (sum diff) 300
+	  set-precedence (prod quot) 350
+	  set-precedence const 350
+	  set-precedence S 410     
+
+	  define (int->const x) := check {(integer-numeral? x) => (const int->nat x)
+					   | else => x}
+	   
+	  expand-input const [int->nat]
+	  expand-input sum, diff, prod, quot [int->const int->const]
+	 
+	  overload (+ sum) (- diff) (* prod) (/ quot)
+	  overload (+ N.+) (- N.-) (* N.*) (/ N./)
+
+	  define [e e' e1 e2 e3 e4] := [?e:Exp ?e':Exp ?e1:Exp ?e2:Exp ?e3:Exp ?e4:Exp]
+	  define [n n' n1 n2 n3 n4] := [?n:N ?n':N ?n1:N ?n2:N ?n3:N ?n4:N]
+
+
+	  module Interpreter {
+		  declare I: [Exp] -> N [350]
+
+			  assert* I-semantics :=
+			  [(I const n = n)
+			   (I (e1 + e2) = I e1 + I e2)
+			   (I (e1 - e2) = I e1 - I e2)
+			   (I (e1 * e2) = I e1 * I e2)
+			   (I (e1 / e2) = I e1 / I e2)
+			  ]
+
+		   transform-output eval [nat->int (clist->alist nat->int)]
+	 }
+
+
+
+	 module VM {
+
+		datatype Command := (push N) | add | sub | mult | div
+
+		expand-input push [int->nat]
+		set-precedence push 350
+
+		define-sort Program := (List Command)
+		define-sort Stack := (List N)
+
+		define [cmd cmd' prog prog1 prog2 rest stack stack1 stack2] :=
+		       [?cmd:Command ?cmd':Command ?prog:Program
+			?prog1:Program ?prog2:Program ?rest:Program ?stack:Stack
+			?stack1:Stack ?stack2:Stack]
+		
+
+		declare exec: [Program Stack] -> N [wrt 101 [(alist->clist id) (alist->clist int->nat)]]
+		expand-input :: [id (alist->clist int->nat)]
+		define ++ := List.join
+		
+		assert* exec-def := [
+		    ([] wrt n::_ = n)
+		    (((push n) :: rest) wrt stack = rest wrt n::stack)
+		    (add::rest wrt n1::n2::stack = rest wrt (n1 + n2)::stack)
+		    (sub::rest wrt n1::n2::stack = rest wrt (n1 - n2)::stack)
+		    (mult::rest wrt n1::n2::stack = rest wrt (n1 * n2)::stack)
+		    (div::rest wrt n1::n2::stack = rest wrt (n1 / n2)::stack)
+		]
+
+		declare run-vm: [Program] -> N [[(alist->clist id)]]
+		assert* vm-def := [(run-vm prog = prog wrt [])]
+	     
+	 }
+
+	 module Compiler {
+		open VM
+		declare compile: [Exp] -> Program [380]	  
+		
+		assert* compiler-semantics := [
+			(compile const n = (push n)::[])		       
+			(compile (e1 + e2) = compile e2 ++ compile e1 ++ [add])
+			(compile (e1 - e2) = compile e2 ++ compile e1 ++ [sub])
+			(compile (e1 * e2) = compile e2 ++ compile e1 ++ [mult])
+			(compile (e1 / e2) = compile e2 ++ compile e1 ++ [div])
+		]			       
+
+
+
+
+
+	}		  
+
+
+
+
+
+
+
+
+
+}
+
+module CalcLanguageTest {
+    open CalculatorLanguage			 
+
+    transform-output eval [nat->int (clist->alist nat->int)]
+
+    define (run prog) := match prog {
+	      [p s] => (eval (VM.exec p s))
+	      | (p where (equal? (sort-of p) (sort-of (fresh-var "Exp")))) => (eval Interpreter.I prog)
+	       
+
+    }
+
+
+    let {2+3 := (2 sum 3);
+	 10-6 := (10 diff 6);
+	 10/2 := (10 quot 2);
+	 9*9 := (9 prod 9)}
+ 
+
+    (print "\nValue of 2+3 is:\t" (run 2+3) "\nValue of 10-6 is:\t" (run 10-6)
+	   "\n Value of 10/2 is:\t" (run 10/2) "\n Value of 9*9 is:\t" (run 9*9))
+
+    open VM
+    
+
+    (print "\nValue of 2 + 3 in VM is:\t" (run [[(push 2) (push 3) add] []]))
+
+    (print "\n Value of 2 + 3 * 2 is:\t" (run [[mult add] [2 3 2]]) "\tshould be 8")
+
+}
