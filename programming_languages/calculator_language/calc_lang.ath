@@ -24,24 +24,29 @@ module CalculatorLanguage {
 	  overload (+ N.+) (- N.-) (* N.*) (/ N./)
 
 	  define [e e' e1 e2 e3 e4] := [?e:Exp ?e':Exp ?e1:Exp ?e2:Exp ?e3:Exp ?e4:Exp]
-	  define [n n' n1 n2 n3 n4] := [?n:N ?n':N ?n1:N ?n2:N ?n3:N ?n4:N]
+	  define [n n' n1 n2 n3 n4] := [?n:N ?n':N ?n1:N ?n2:N ?n3:N ?n4:N] 
+
+}
+
+extend-module CalculatorLanguage {
+    module Interpreter {
+  
+        declare I: [Exp] -> N [350]
+
+        assert* I-semantics :=
+            [(I const n = n)
+            (I (e1 + e2) = I e1 + I e2)
+            (I (e1 - e2) = I e1 - I e2)
+            (I (e1 * e2) = I e1 * I e2)
+            (I (e1 / e2) = I e1 / I e2)
+            ]
+
+        transform-output eval [nat->int (clist->alist nat->int)]
+    }
+}
 
 
-	  module Interpreter {
-		  declare I: [Exp] -> N [350]
-
-			  assert* I-semantics :=
-			  [(I const n = n)
-			   (I (e1 + e2) = I e1 + I e2)
-			   (I (e1 - e2) = I e1 - I e2)
-			   (I (e1 * e2) = I e1 * I e2)
-			   (I (e1 / e2) = I e1 / I e2)
-			  ]
-
-		   transform-output eval [nat->int (clist->alist nat->int)]
-	 }
-
-
+extend-module CalculatorLanguage {
 
 	 module VM {
 
@@ -76,7 +81,9 @@ module CalculatorLanguage {
 		assert* vm-def := [(run-vm prog = prog wrt [])]
 	     
 	 }
+}
 
+extend-module CalculatorLanguage {
 	 module Compiler {
 		open VM
 		declare compile: [Exp] -> Program [380]	  
@@ -89,21 +96,10 @@ module CalculatorLanguage {
 			(compile (e1 / e2) = compile e2 ++ compile e1 ++ [div])
 		]			       
 
-
-
-
-
-	}		  
-
-
-
-
-
-
-
-
-
+	}
 }
+
+
 
 module CalcLanguageTest {
     open CalculatorLanguage			 
